@@ -1,0 +1,14 @@
+{
+  "name": "mojProjektNW",
+  "main": "index.html",
+  "chromium-args": "--allow-file-access-from-files",
+  "window": {
+    "toolbar": false,
+    "frame": true,
+    "width": 1280,
+    "height": 800
+  },
+  "dependencies": {
+    "mojProjektNW": "file:"
+  }
+}

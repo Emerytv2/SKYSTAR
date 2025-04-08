@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Kreator Placów Zabaw – Zintegrowany Projekt</title>
+
+  <!-- Czcionka -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
+
+  <!-- Zewnętrzne biblioteki -->
+  <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Dynamiczny CSS (style.js) -->
+  <script src="js/style.js"></script>
+</head>
+<body>
+  <!-- Pasek u góry (topbar) -->
+  <div id="topbar">
+    <h1>Kreator Placów Zabaw</h1>
+    <!-- Przycisk folderów – kliknięcie powoduje pokazanie/ukrycie panelu modułów -->
+    <div class="folder-buttons">
+      <button class="folder-button" onclick="toggleFolder('Słupy')">Słupy</button>
+      <button class="folder-button" onclick="toggleFolder('Podesty')">Podesty</button>
+      <button class="folder-button" onclick="toggleFolder('Przejścia')">Przejścia</button>
+      <button class="folder-button" onclick="toggleFolder('Zabezpieczenia')">Zabezpieczenia</button>
+      <button class="folder-button" onclick="toggleFolder('Zjeżdżalnie')">Zjeżdżalnie</button>
+      <button class="folder-button" onclick="toggleFolder('Dachy')">Dachy</button>
+      <button class="folder-button" onclick="toggleFolder('Zestawy')">Zestawy</button>
+    </div>
+    <!-- Narzędzia (zapisywanie, otwieranie, reset, strefa, PDF) -->
+    <div class="tools-buttons">
+      <button class="tool-button" onclick="app.saveProjectAsJson()">Zapisz</button>
+      <button class="tool-button" onclick="app.loadProjectFromFile()">Otwórz</button>
+      <button class="tool-button" id="resetSceneBtn">Reset</button>
+      <button class="tool-button" id="drawSafeZoneBtn">Strefa</button>
+      <button class="tool-button" onclick="generatePdfReport(app)">PDF</button>
+    </div>
+  </div>
+
+  <!-- Główny kontener: scena + panel modułów -->
+  <div id="container">
+    <!-- Panel modułów (wysuwany z lewej) -->
+    <div id="moduleListPanel">
+      <h2>Moduły</h2>
+      <!-- Sekcja wyboru wysokości dla podestów (widoczna tylko przy folderze "Podesty") -->
+      <div id="heightSelector" style="display:none; margin-bottom:10px;">
+        <label for="podestHeightSelect">Wysokość podestu:</label>
+        <select id="podestHeightSelect">
+          <option value="0.6">60 cm</option>
+          <option value="0.9" selected>90 cm</option>
+          <option value="1.2">120 cm</option>
+          <option value="1.5">150 cm</option>
+        </select>
+      </div>
+      <!-- Lista modułów (kafelki) -->
+      <div id="module-list"></div>
+    </div>
+
+    <!-- Scena (Three.js) -->
+    <div id="main-content">
+      <!-- Panel info (wymiary zestawu) -->
+      <div id="infoPanel"></div>
+      <!-- Panel wykorzystanych modułów (opcjonalny) -->
+      <div id="modulesPanel"></div>
+      <!-- Logo (opcjonalnie) -->
+      <div id="logoContainer">
+        <img src="assets/Logo/logoStarmax.png" alt="Logo" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Okienko pomocy -->
+  <div id="help">
+    <h4>Pomoc</h4>
+    <ul>
+      <li>Kamera ortograficzna – brak zoomu przez scroll</li>
+      <li>Kliknij w pusty obszar sceny, aby wstawić wybrany moduł</li>
+      <li>Przeciągaj moduły z listy na scenę (bez przeciągania miniatury)</li>
+      <li>Dla podestów wybierz wysokość z listy w panelu modułów</li>
+      <li>Słupy snapują do narożników podestów</li>
+      <li>Użyj klawiszy Q i E do obracania wstawianego lub zaznaczonego modułu</li>
+      <li>Klawisz Delete usuwa zaznaczony moduł</li>
+      <li>Zmiana koloru – kliknij na bąbelki (które mają obramowanie)</li>
+      <li>Undo/Redo: Ctrl+Z / Ctrl+Shift+Z</li>
+    </ul>
+    <button onclick="app.toggleHelp()">Zwiń pomoc</button>
+  </div>
+  <button id="helpToggle" onclick="app.toggleHelp()" style="display:none;">Pokaż pomoc</button>
+
+  <!-- Menu kontekstowe (tworzone dynamicznie w contextMenu.js) -->
+  <div id="contextMenu"></div>
+
+  <!-- Skrypty własne (kolejność ma znaczenie) -->
+  <script src="js/scene.js"></script>
+  <script src="js/snap.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/strefy.js"></script>
+  <script src="js/undo.js"></script>
+  <script src="js/contextMenu.js"></script>
+  <script src="js/fileManager.js"></script>
+  <script src="js/color.js"></script>
+  <script src="js/modules.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/main.js"></script>
+
+  <!-- Dodatkowe skrypty: toggleFolder, obsługa klawiatury (obrót, usuwanie) -->
+  <script>
+    /**
+     * toggleFolder(folder) – pokazuje/ukrywa panel modułów i wypełnia go odpowiednią treścią.
+     */
+    function toggleFolder(folder) {
+      const panel = document.getElementById('moduleListPanel');
+      if (app.selectedFolder === folder && panel.classList.contains('open')) {
+        // Jeśli klikamy ten sam folder i jest już otwarty – zamknij
+        panel.classList.remove('open');
+        document.getElementById('module-list').innerHTML = "";
+        app.selectedFolder = null;
+      } else {
+        app.selectFolder(folder);
+      }
+    }
+
+    /**
+     * Obsługa klawiatury – obrót (Q/E) i usuwanie (Delete)
+     */
+    document.addEventListener('keydown', function(event) {
+      // Jeśli mamy previewObject, obracamy go
+      if (app.previewObject) {
+        if (event.key.toLowerCase() === 'q') {
+          app.previewObject.rotation.y += THREE.Math.degToRad(90);
+        }
+        if (event.key.toLowerCase() === 'e') {
+          app.previewObject.rotation.y -= THREE.Math.degToRad(90);
+        }
+      }
+      // Jeśli mamy zaznaczony obiekt
+      if (app.selectedSubMesh) {
+        let root = app.getRootGroup(app.selectedSubMesh);
+        if (event.key.toLowerCase() === 'q') {
+          root.rotation.y += THREE.Math.degToRad(90);
+        }
+        if (event.key.toLowerCase() === 'e') {
+          root.rotation.y -= THREE.Math.degToRad(90);
+        }
+        if (event.key === 'Delete') {
+          app.deleteRootObject(root);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
